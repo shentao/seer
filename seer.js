@@ -39,9 +39,6 @@ const Seer = (function () {
     Seer.parseDOM(document.body, myObj)
   }
   const makeReactive = function (obj, key, val) {
-    const getter = obj[key].get
-    const setter = obj[key].set
-
     Object.defineProperty(obj, key, {
       get () {
         return val
@@ -68,6 +65,7 @@ let myObj = {
 }
 
 Seer.toObservable(myObj)
+
 function increment () {
   myObj.value++
   myObj.multipleValue = myObj.value * myObj.value
