@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Seer.js Reactivity Prototype</title>
+  </head>
+  <body>
+
+
+    <h1 sync="name"></h1>
+    <input type="text" oninput="updateName(event)"/>
+
+    <hr>
+    <div class="panel">
+      <button type="button" class="btn" onclick="increment()">INCREMENT</button>
+      <h3>Base value:</h3>
+      <h4 sync="value">0</h4>
+
+      <h3>Multiplied value:</h3>
+      <h4 sync="multipleValue">0</h4>
+    </div>
+
+    <script src="seer.js" charset="utf-8"></script>
+  </body>
+</html>
