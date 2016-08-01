@@ -7,8 +7,15 @@
   <body>
 
 
-    <h1 sync="name"></h1>
-    <input type="text" oninput="updateName(event)"/>
+    <h1 sync="firstName"></h1>
+    <input type="text" oninput="updateInput('firstName', event)"/>
+
+    <h1 sync="lastName"></h1>
+    <input type="text" oninput="updateInput('lastName', event)"/>
+
+    <h1 sync="fullName"></h1>
+    <h1 sync="reversedName"></h1>
+    <h1 sync="reversedNameWithLastName"></h1>
 
     <hr>
     <div class="panel">

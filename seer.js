@@ -1,4 +1,4 @@
-const Seer = (function () {
+function Seer (initObj) {
   let signals = {}
   const observe = function (signal, signalHandler) {
     if(!signals[signal]) signals[signal] = []
@@ -19,7 +19,7 @@ const Seer = (function () {
   }
   const parseDOM = function (node, observable) {
     if (node.children.length > 0) {
-      for (const childNode of node.children) {
+      for (let childNode of node.children) {
         parseDOM(childNode, observable)
       }
     } else {
@@ -30,47 +30,93 @@ const Seer = (function () {
     }
   }
 
-  const toObservable = function (obj) {
-    for (let prop in obj) {
-      if (obj.hasOwnProperty(prop)) {
-        makeReactive(obj, prop, obj[prop])
+  const observeData = function (obj) {
+    for (let key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        if (typeof obj[key] === 'object' && !obj[key].length) {
+          observeData(obj[key])
+        } else {
+          makeReactive(obj, key, obj[key])
+        }
       }
     }
-    Seer.parseDOM(document.body, myObj)
+    parseDOM(document.body, obj)
   }
-  const makeReactive = function (obj, key, val) {
+
+  const makeReactive = function (obj, key, val, getter = false) {
+    val = getter ? getter() : val
+
     Object.defineProperty(obj, key, {
       get () {
         return val
       },
       set (newVal) {
-        if (newVal === val) return
         val = newVal
         notify(key, newVal)
       }
     })
   }
-  return {
-    syncDOM,
-    observe,
-    toObservable,
-    parseDOM
-  }
-}())
 
-let myObj = {
-  value: 1,
-  multipleValue: 1,
-  name: 'Hello Monterail'
+  const observeComputed = function (obj) {
+    for (let key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        observeDeps(key, obj[key].deps, obj[key].getter, obj[key].setter)
+      }
+    }
+  }
+
+  const observeDeps = function (key, deps, getter) {
+    for (const dep of deps) {
+      observe(dep, () => notify(key))
+    }
+    this.data = initObj.data
+    Object.defineProperty(initObj.data, key, {
+      get () {
+        return getter()
+      }
+    })
+  }
+
+  observeComputed(initObj.computed, initObj.data)
+  observeData(initObj.data)
+  return initObj
 }
 
-Seer.toObservable(myObj)
+
+const app = new Seer({
+  data: {
+    value: 1,
+    multipleValue: [1, 2],
+    firstName: 'Jon',
+    lastName: 'Snow'
+  },
+  computed: {
+    reversedName: {
+      deps: ['fullName'],
+      getter () {
+        return this.data.fullName.split('').reverse().join('')
+      }
+    },
+    fullName: {
+      deps: ['firstName', 'lastName'],
+      getter () {
+        return this.data.firstName + ' ' + this.data.lastName
+      }
+    },
+    reversedNameWithLastName: {
+      deps: ['reversedName', 'lastName'],
+      getter () {
+        return this.data.reversedName + ' ' + this.data.lastName
+      }
+    }
+  }
+})
 
 function increment () {
-  myObj.value++
-  myObj.multipleValue = myObj.value * myObj.value
+  app.data.value++
+  app.data.multipleValue = app.data.value * app.data.value
 }
 
-function updateName (event) {
-  myObj.name = event.target.value.split("").reverse().join("")
+function updateInput (target, event) {
+  app.data[target] = event.target.value
 }
