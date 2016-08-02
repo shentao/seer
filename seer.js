@@ -1,21 +1,25 @@
 function Seer (initObj) {
+  let dependencies = []
+  let currentDepId = 0
+
   let signals = {}
   const observe = function (signal, signalHandler) {
     if(!signals[signal]) signals[signal] = []
 
     signals[signal].push(signalHandler)
   }
-  const notify = function (signal, newVal) {
+  const notify = function (signal) {
     if(!signals[signal] || signals[signal].length < 1) return
 
-    signals[signal].forEach(function(signalHandler) {
-      signalHandler(newVal || {})
-    })
+
+    for (const handler of signals[signal]) {
+      handler()
+    }
   }
 
   const syncDOM = function (obj, node, observableName) {
     node.textContent = obj[observableName]
-    observe(observableName, (value) => node.textContent = obj[observableName])
+    observe(observableName, (value) => node.textContent = obj[observableName] || '')
   }
   const parseDOM = function (node, observable) {
     if (node.children.length > 0) {
@@ -43,16 +47,24 @@ function Seer (initObj) {
     parseDOM(document.body, obj)
   }
 
-  const makeReactive = function (obj, key, val, getter = false) {
-    val = getter ? getter() : val
+  const makeReactive = function (obj, key, val) {
+    const property = Object.getOwnPropertyDescriptor(obj, key)
+
+    const getter = property && property.get
+    const setter = property && property.set
 
     Object.defineProperty(obj, key, {
       get () {
-        return val
+        const value = getter ? getter.call(obj) : val
+        return value
       },
       set (newVal) {
-        val = newVal
-        notify(key, newVal)
+        if (setter) {
+          setter.call(obj, newVal)
+        } else {
+          val = newVal
+        }
+        notify(key)
       }
     })
   }
@@ -65,7 +77,7 @@ function Seer (initObj) {
     }
   }
 
-  const observeDeps = function (key, deps, getter) {
+  const observeDeps = function (key, deps, getter, setter) {
     for (const dep of deps) {
       observe(dep, () => notify(key))
     }
@@ -73,6 +85,9 @@ function Seer (initObj) {
     Object.defineProperty(initObj.data, key, {
       get () {
         return getter()
+      },
+      set (newVal) {
+        setter(newVal)
       }
     })
   }
@@ -86,7 +101,7 @@ function Seer (initObj) {
 const app = new Seer({
   data: {
     value: 1,
-    multipleValue: [1, 2],
+    multipleValue: 1,
     firstName: 'Jon',
     lastName: 'Snow'
   },
@@ -101,6 +116,11 @@ const app = new Seer({
       deps: ['firstName', 'lastName'],
       getter () {
         return this.data.firstName + ' ' + this.data.lastName
+      },
+      setter (fullName) {
+        fullName = fullName.split(' ')
+        this.data.firstName = fullName[0] || ''
+        this.data.lastName = fullName[1] || ''
       }
     },
     reversedNameWithLastName: {
