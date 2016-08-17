@@ -7,17 +7,26 @@
   <body>
 
 
-    <h1 sync="firstName"></h1>
+    <label>First name:</label>
     <input type="text" oninput="updateInput('firstName', event)"/>
-
-    <h1 sync="lastName"></h1>
+    <h3 sync="firstName"></h3>
+    <hr>
+    <label>Last name:</label>
     <input type="text" oninput="updateInput('lastName', event)"/>
+    <h3 sync="lastName"></h3>
 
-    <h1 sync="fullName"></h1>
-    <h1 sync="reversedName"></h1>
-    <h1 sync="reversedNameWithLastName"></h1>
 
-    <input type="text" oninput="updateInput('fullName', event)"/>
+    <hr>
+    <label>Full name:</label>
+    <h3 sync="fullName"></h3>
+    <label><input type="text" oninput="updateInput('fullName', event)"/>
+    <hr>
+    <label>Revesed name:</label>
+    <h3 sync="reversedName"></h3>
+    <hr>
+    <label>Revesed name + lastName:</label>
+    <h3 sync="reversedNameWithLastName"></h3>
+
     <hr>
     <div class="panel">
       <button type="button" class="btn" onclick="increment()">INCREMENT</button>

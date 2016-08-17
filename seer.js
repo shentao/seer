@@ -1,40 +1,49 @@
 function Seer (initObj) {
-  let dependencies = []
-  let currentDepId = 0
-
   let signals = {}
-  const observe = function (signal, signalHandler) {
+
+  observeComputed(initObj.computed, initObj.data)
+  observeData(initObj.data)
+
+  return {
+    observe,
+    notify,
+    data: initObj.data,
+  }
+
+  function observe (signal, signalHandler) {
     if(!signals[signal]) signals[signal] = []
 
     signals[signal].push(signalHandler)
   }
-  const notify = function (signal) {
+
+  function notify (signal) {
     if(!signals[signal] || signals[signal].length < 1) return
 
-
-    for (const handler of signals[signal]) {
-      handler()
-    }
+    signals[signal].forEach((signalHandler) => signalHandler())
   }
 
-  const syncDOM = function (obj, node, observableName) {
+  function syncDOM (obj, node, observableName) {
     node.textContent = obj[observableName]
     observe(observableName, (value) => node.textContent = obj[observableName] || '')
   }
-  const parseDOM = function (node, observable) {
-    if (node.children.length > 0) {
-      for (let childNode of node.children) {
-        parseDOM(childNode, observable)
-      }
-    } else {
-      if (node.attributes.hasOwnProperty('sync')) {
-        syncDOM(observable, node, node.attributes['sync'].value)
-      }
-      return
+
+  function parseDOM (node, observable) {
+    const nodes = document.querySelectorAll('[sync]')
+    for (const node of nodes) {
+      syncDOM(observable, node, node.attributes['sync'].value)
     }
+    // if (node.children.length > 0) {
+    //   for (let childNode of node.children) {
+    //     parseDOM(childNode, observable)
+    //   }
+    // }
+    // if (node.attributes.hasOwnProperty('sync')) {
+    //   syncDOM(observable, node, node.attributes['sync'].value)
+    // }
+    // return
   }
 
-  const observeData = function (obj) {
+  function observeData (obj) {
     for (let key in obj) {
       if (obj.hasOwnProperty(key)) {
         if (typeof obj[key] === 'object' && !obj[key].length) {
@@ -47,59 +56,47 @@ function Seer (initObj) {
     parseDOM(document.body, obj)
   }
 
-  const makeReactive = function (obj, key, val) {
-    const property = Object.getOwnPropertyDescriptor(obj, key)
-
-    const getter = property && property.get
-    const setter = property && property.set
-
+  function makeReactive (obj, key, val) {
     Object.defineProperty(obj, key, {
       get () {
-        const value = getter ? getter.call(obj) : val
-        return value
+        return val
       },
       set (newVal) {
-        if (setter) {
-          setter.call(obj, newVal)
-        } else {
-          val = newVal
-        }
+        val = newVal
         notify(key)
       }
     })
   }
 
-  const observeComputed = function (obj) {
-    for (let key in obj) {
-      if (obj.hasOwnProperty(key)) {
-        observeDeps(key, obj[key].deps, obj[key].getter, obj[key].setter)
-      }
-    }
-  }
-
-  const observeDeps = function (key, deps, getter, setter) {
-    for (const dep of deps) {
+  function observeDeps (obj, key, getter, setter) {
+    for (const dep of obj[key].deps) {
       observe(dep, () => notify(key))
     }
-    this.data = initObj.data
+    // This could be merged with makeReactive
     Object.defineProperty(initObj.data, key, {
       get () {
-        return getter()
+        return getter.call(initObj.data)
       },
       set (newVal) {
-        setter(newVal)
+        return setter.call(initObj.data, newVal)
       }
     })
   }
 
-  observeComputed(initObj.computed, initObj.data)
-  observeData(initObj.data)
-  return initObj
+  function observeComputed (obj) {
+    for (let key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        observeDeps(obj, key, obj[key].getter, obj[key].setter)
+      }
+    }
+  }
 }
 
 
-const app = new Seer({
+const App = new Seer({
   data: {
+    // Currently supports only primitive values
+    // TODO: Support arrays and nested objects
     value: 1,
     multipleValue: 1,
     firstName: 'Jon',
@@ -109,34 +106,42 @@ const app = new Seer({
     reversedName: {
       deps: ['fullName'],
       getter () {
-        return this.data.fullName.split('').reverse().join('')
+        return this.fullName.split('').reverse().join('')
       }
     },
     fullName: {
       deps: ['firstName', 'lastName'],
       getter () {
-        return this.data.firstName + ' ' + this.data.lastName
+        return this.firstName + ' ' + this.lastName
       },
       setter (fullName) {
         fullName = fullName.split(' ')
-        this.data.firstName = fullName[0] || ''
-        this.data.lastName = fullName[1] || ''
+        this.firstName = fullName[0] || ''
+        this.lastName = fullName[1] || ''
       }
     },
     reversedNameWithLastName: {
       deps: ['reversedName', 'lastName'],
       getter () {
-        return this.data.reversedName + ' ' + this.data.lastName
+        return this.reversedName + ' ' + this.lastName
       }
     }
   }
 })
 
+// To subscribe and react to changes made to the reactive App object:
+// App.observe('firstName', () => console.log(App.data.firstName))
+// App.observe('lastName', () => console.log(App.data.lastName))
+
+// To access or change the reactive data simply do:
+// App.data.firstName = 'Sansa'
+// App.data.lastName = 'Stark'
+
 function increment () {
-  app.data.value++
-  app.data.multipleValue = app.data.value * app.data.value
+  App.data.value++
+  App.data.multipleValue = App.data.value * App.data.value
 }
 
 function updateInput (target, event) {
-  app.data[target] = event.target.value
+  App.data[target] = event.target.value
 }
