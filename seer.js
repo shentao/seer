@@ -1,76 +1,80 @@
-const Seer = (function () {
+function Seer (dataObj) {
   let signals = {}
-  const observe = function (signal, signalHandler) {
-    if(!signals[signal]) signals[signal] = []
 
-    signals[signal].push(signalHandler)
+  observeData(dataObj)
+
+  return {
+    data: dataObj,
+    observe,
+    notify
   }
-  const notify = function (signal, newVal) {
+
+  function observe (property, signalHandler) {
+    if(!signals[property]) signals[property] = []
+
+    signals[property].push(signalHandler)
+  }
+
+  function notify (signal) {
     if(!signals[signal] || signals[signal].length < 1) return
 
-    signals[signal].forEach(function(signalHandler) {
-      signalHandler(newVal || {})
-    })
+    signals[signal].forEach((signalHandler) => signalHandler())
   }
 
-  const syncDOM = function (obj, node, observableName) {
-    node.textContent = obj[observableName]
-    observe(observableName, (value) => node.textContent = obj[observableName])
-  }
-  const parseDOM = function (node, observable) {
-    if (node.children.length > 0) {
-      for (const childNode of node.children) {
-        parseDOM(childNode, observable)
-      }
-    } else {
-      if (node.attributes.hasOwnProperty('sync')) {
-        syncDOM(observable, node, node.attributes['sync'].value)
-      }
-      return
-    }
-  }
+  function makeReactive (obj, key) {
+    let val = obj[key]
 
-  const toObservable = function (obj) {
-    for (let prop in obj) {
-      if (obj.hasOwnProperty(prop)) {
-        makeReactive(obj, prop, obj[prop])
-      }
-    }
-    Seer.parseDOM(document.body, myObj)
-  }
-  const makeReactive = function (obj, key, val) {
     Object.defineProperty(obj, key, {
       get () {
         return val
       },
       set (newVal) {
-        if (newVal === val) return
         val = newVal
-        notify(key, newVal)
+        notify(key)
       }
     })
   }
-  return {
-    syncDOM,
-    observe,
-    toObservable,
-    parseDOM
-  }
-}())
 
-let myObj = {
-  value: 1,
-  multipleValue: 1,
-  name: 'Hello Monterail'
+  function observeData (obj) {
+    for (let key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        makeReactive(obj, key)
+      }
+    }
+    // We can safely parse the DOM looking for bindings after we converted the dataObject.
+    parseDOM(document.body, obj)
+  }
+
+  function syncNode (node, observable, property) {
+    node.textContent = observable[property]
+    // We remove the `Seer.` as it is now available for us in our scope.
+    observe(property, () => node.textContent = observable[property])
+  }
+
+  function parseDOM (node, observable) {
+    const nodes = document.querySelectorAll('[s-text]')
+
+    nodes.forEach((node) => {
+      syncNode(node, observable, node.attributes['s-text'].value)
+    })
+  }
 }
 
-Seer.toObservable(myObj)
+const App = Seer({
+  title: 'Game of Thrones',
+  firstName: 'Jon',
+  lastName: 'Snow',
+  age: 25
+})
 
-function increment () {
-  myObj.value++
-  myObj.multipleValue = myObj.value * myObj.value
+function updateText (property, e) {
+	App.data[property] = e.target.value
+}
+
+function resetTitle () {
+	App.data.title = "Game of Thrones"
 }
 
 function updateName (event) {
-  myObj.name = event.target.value.split("").reverse().join("")
+  App.data.firstName = event.target.value.split("").reverse().join("")
 }
