@@ -24,14 +24,16 @@ function Seer (initObj) {
 
   function syncDOM (obj, node, observableName) {
     node.textContent = obj[observableName]
-    observe(observableName, (value) => node.textContent = obj[observableName] || '')
+    observe(observableName, value => node.textContent = obj[observableName] || '')
   }
 
   function parseDOM (node, observable) {
     const nodes = document.querySelectorAll('[sync]')
-    for (const node of nodes) {
+    nodes.forEach((node) => {
       syncDOM(observable, node, node.attributes['sync'].value)
-    }
+    })
+    // for (const node of nodes) {
+    // }
     // if (node.children.length > 0) {
     //   for (let childNode of node.children) {
     //     parseDOM(childNode, observable)
