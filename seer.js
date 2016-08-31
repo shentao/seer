@@ -1,13 +1,13 @@
 function Seer (initObj) {
   let signals = {}
 
-  observeComputed(initObj.computed, initObj.data)
+  // observeComputed(initObj.computed, initObj.data)
   observeData(initObj.data)
 
   return {
     observe,
     notify,
-    data: initObj.data,
+    data: initObj.data
   }
 
   function observe (signal, signalHandler) {
@@ -32,66 +32,86 @@ function Seer (initObj) {
     nodes.forEach((node) => {
       syncDOM(observable, node, node.attributes['sync'].value)
     })
-    // for (const node of nodes) {
-    // }
-    // if (node.children.length > 0) {
-    //   for (let childNode of node.children) {
-    //     parseDOM(childNode, observable)
-    //   }
-    // }
-    // if (node.attributes.hasOwnProperty('sync')) {
-    //   syncDOM(observable, node, node.attributes['sync'].value)
-    // }
-    // return
   }
 
   function observeData (obj) {
     for (let key in obj) {
       if (obj.hasOwnProperty(key)) {
-        if (typeof obj[key] === 'object' && !obj[key].length) {
+        const isNested = (typeof obj[key] === 'object' && !obj[key].length && !obj[key].deps)
+        if (isNested) {
           observeData(obj[key])
         } else {
-          makeReactive(obj, key, obj[key])
+          makeReactive(obj, key)
         }
       }
     }
     parseDOM(document.body, obj)
   }
 
-  function makeReactive (obj, key, val) {
+  function makeReactive (obj, key) {
+    let hasDeps = !!obj[key].deps
+    let property = obj[key]
+    let val
+
+    if (hasDeps) {
+      for (const dep of obj[key].deps) {
+        observe(dep, () => notify(key))
+      }
+    } else {
+      val = obj[key]
+    }
+
+    // This could be merged with makeReactive
     Object.defineProperty(obj, key, {
       get () {
-        return val
+        return hasDeps
+          ? property.get.call(obj)
+          : val
       },
       set (newVal) {
-        val = newVal
-        notify(key)
+        if (hasDeps) {
+          return property.set.call(obj, newVal)
+        } else {
+          val = newVal
+          notify(key)
+        }
       }
     })
-  }
 
-  function observeDeps (obj, key, getter, setter) {
-    for (const dep of obj[key].deps) {
-      observe(dep, () => notify(key))
-    }
-    // This could be merged with makeReactive
-    Object.defineProperty(initObj.data, key, {
-      get () {
-        return getter.call(initObj.data)
-      },
-      set (newVal) {
-        return setter.call(initObj.data, newVal)
-      }
-    })
-  }
 
-  function observeComputed (obj) {
-    for (let key in obj) {
-      if (obj.hasOwnProperty(key)) {
-        observeDeps(obj, key, obj[key].getter, obj[key].setter)
-      }
-    }
+    // Object.defineProperty(obj, key, {
+    //   get () {
+    //     return val
+    //   },
+    //   set (newVal) {
+    //     val = newVal
+    //     notify(key)
+    //   }
+    // })
   }
+  //
+  // function observeDeps (obj, key, get, set) {
+  //   for (const dep of obj[key].deps) {
+  //     observe(dep, () => notify(key))
+  //   }
+  //   // This could be merged with makeReactive
+  //   Object.defineProperty(initObj.data, key, {
+  //     get () {
+  //       return get.call(initObj.data)
+  //     },
+  //     set (newVal) {
+  //       return set.call(initObj.data, newVal)
+  //     }
+  //   })
+  // }
+  //
+  // function observeComputed (obj) {
+  //   for (let key in obj) {
+  //     if (obj.hasOwnProperty(key)) {
+  //       observeDeps(obj, key, obj[key].get, obj[key].set)
+  //     }
+  //   }
+  // }
 }
 
 
@@ -102,21 +122,19 @@ const App = new Seer({
     value: 1,
     multipleValue: 1,
     firstName: 'Jon',
-    lastName: 'Snow'
-  },
-  computed: {
+    lastName: 'Snow',
     reversedName: {
       deps: ['fullName'],
-      getter () {
+      get () {
         return this.fullName.split('').reverse().join('')
       }
     },
     fullName: {
       deps: ['firstName', 'lastName'],
-      getter () {
+      get () {
         return this.firstName + ' ' + this.lastName
       },
-      setter (fullName) {
+      set (fullName) {
         fullName = fullName.split(' ')
         this.firstName = fullName[0] || ''
         this.lastName = fullName[1] || ''
@@ -124,7 +142,7 @@ const App = new Seer({
     },
     reversedNameWithLastName: {
       deps: ['reversedName', 'lastName'],
-      getter () {
+      get () {
         return this.reversedName + ' ' + this.lastName
       }
     }

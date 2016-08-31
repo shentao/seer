@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Seer.js Reactivity Prototype</title>
+  </head>
+  <body>
+
+    <h1 s-text="title"></h1>
+    <label for="title">Title: </label>
+    <input
+      type="text"
+      id="title" placeholder="Enter title"
+      oninput="updateText('title', event)">
+    <button type="button" onclick="resetTitle()">Reset title</button>
+
+
+    <h1 s-text="firstName"></h1>
+    <input type="text" oninput="updateText('name', event)"/>
+
+    <h1>Age: <span s-text="age"></span></h1>
+    <input type="text" oninput="updateText('age', event)"/>
+    <span style="color: red" s-text="ageError"></span>
+
+
+    <h2>Products in cart: <span s-text="items"></span></h2>
+    <button type="button" onclick="addToCart()">Product 1</button>
+
+
+    <script src="seer_working.js" charset="utf-8"></script>
+  </body>
+</html>
