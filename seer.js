@@ -1,15 +1,46 @@
-function Seer (dataObj) {
+const Stream = {
+  where (cb) {
+    return function () {
+      if (cb.call(this)) {
+        return 'elo'
+      }
+    }
+    // return (v) => {
+    //   console.log(this)
+    //   if (cb(v)) {
+    //     return v
+    //   }
+    // }
+  }
+}
+
+function Seer (config) {
   let signals = {}
   let Dep = {
-    target: null
+    target: null,
+    cache: {},
+    invalidate (property) {
+      console.log('invalidating: ', property)
+      this.cache[property] = null
+    }
   }
 
-  observeData(dataObj)
+  observeData(config.data)
+  subscribeWatchers(config.watch)
 
   return {
-    data: dataObj,
+    data: config.data,
     observe,
-    notify
+    notify,
+    Stream
+  }
+
+  function subscribeWatchers(watchers) {
+    for (let key in watchers) {
+      if (watchers.hasOwnProperty(key)) {
+        observe(key, watchers[key])
+      }
+    }
   }
 
   function observe (property, signalHandler) {
@@ -18,26 +49,21 @@ function Seer (dataObj) {
     signals[property].push(signalHandler)
   }
 
-  function notify (signal) {
+  function notify (signal, val) {
     if(!signals[signal] || signals[signal].length < 1) return
 
-    signals[signal].forEach(signalHandler => signalHandler())
+    signals[signal].forEach(signalHandler => signalHandler(val))
   }
 
   function makeReactive (obj, key, computeFunc) {
     let deps = []
     let val = obj[key]
 
-    Object.defineProperty (obj, key, {
+    Object.defineProperty(obj, key, {
       get () {
-        if (computeFunc) {
-          if (!Dep.target) Dep.target = key
-          val = computeFunc.call(obj)
-          Dep.target = null
-        } else {
-          if (Dep.target && deps.indexOf(Dep.target) === -1){
-            deps.push(Dep.target)
-          }
+        if (Dep.target && deps.indexOf(Dep.target) === -1){
+          deps.push(Dep.target)
+          console.log(deps)
         }
 
         return val
@@ -46,10 +72,32 @@ function Seer (dataObj) {
         val = newVal
 
         if (deps.length) {
+          console.log(key, 'is deps for: ', deps)
+          deps.forEach(dep => Dep.invalidate(dep))
           deps.forEach(dep => notify(dep))
         }
-        notify(key)
+        notify(key, val)
       }
+    })
+  }
+
+  function makeComputed (obj, key, computeFunc) {
+    Object.defineProperty(obj, key, {
+      get () {
+        if (!Dep.target) Dep.target = key
+        // val = computeFunc.call(obj)
+        // console.log(Dep.target, 'vs', key)
+        if (Dep.cache[key] && Dep.target === key) {
+          console.log('has cache for ', key , ': ', Dep.cache[key])
+        } else {
+          Dep.cache[key] = computeFunc.call(obj)
+        }
+        Dep.target = null
+        return Dep.cache[key]
+        // val = Dep.cache[key] || computeFunc.call(obj)
+        // Dep.cache[key] = val
+      },
+      set () {}
     })
   }
 
@@ -57,7 +105,7 @@ function Seer (dataObj) {
     for (let key in obj) {
       if (obj.hasOwnProperty(key)) {
         if (typeof obj[key] === 'function') {
-          makeReactive(obj, key, obj[key])
+          makeComputed(obj, key, obj[key])
         } else {
           makeReactive(obj, key)
         }
@@ -81,26 +129,49 @@ function Seer (dataObj) {
 }
 
 const App = Seer({
-  title: 'Game of Thrones',
-  firstName: 'Jon',
-  lastName: 'Snow',
-  firstName2: 'Sansa',
-  lastName2: 'Stark',
-  age: 25,
-  ageError: '',
-  items: 0,
-  gender: 'male',
-  fullName () {
-    return this.gender === 'male'
-      ? 'Mr ' + this.firstName + ' ' + this.lastName
-      : 'Ms ' + this.firstName2 + ' ' + this.lastName2
+  data: {
+    firstName: 'Jon',
+    lastName: 'Snow',
+    firstName2: 'Sansa',
+    lastName2: 'Stark',
+    gender: 'male',
+    age: 5,
+    fullName () {
+      console.log('computing fullName')
+      return this.gender === 'male'
+        ? 'Mr ' + this.firstName + ' ' + this.lastName
+        : 'Ms ' + this.firstName2 + ' ' + this.lastName2
+    },
+    fullNameLength () {
+      console.log('computing fullNameLength')
+      const length = this.fullName.length - 4
+      return length
+        ? length
+        : 'Full name not set'
+    }
+    // onlyEvenLengthName: Stream.where(function () {
+    //   return this.firstName.length % 2 === 0
+    // })
   },
-  fullNameLength () {
-    const length = this.fullName.length - 4
-    return length
-      ? length
-      : 'Full name not set'
+  watch: {
+    firstName (v) {
+      // console.log('firstName changed to: ', v)
+    },
+    onlyEvenLengthName (v) {
+      // console.log(v)
+    }
   }
+  // stream: {
+  //   eachDecade: {
+  //     from: 'age',
+  //     operator (i) {
+  //
+  //     }
+  //     next (v) {
+  //       console.log('on next: ', v)
+  //     }
+  //   }
+  // }
 })
 
 function updateText (property, e) {
@@ -113,6 +184,10 @@ function resetTitle () {
 
 function updateName (event) {
   App.data.firstName = event.target.value.split("").reverse().join("")
+}
+
+function logProperty (property) {
+  console.log(App.data[property])
 }
 
 App.observe('age', () => {
