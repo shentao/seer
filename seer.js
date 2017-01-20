@@ -1,26 +1,15 @@
-const Stream = {
-  where (cb) {
-    return function () {
-      if (cb.call(this)) {
-        return 'elo'
-      }
-    }
-    // return (v) => {
-    //   console.log(this)
-    //   if (cb(v)) {
-    //     return v
-    //   }
-    // }
-  }
-}
-
 function Seer (config) {
   let signals = {}
   let Dep = {
+    // Name of the currently evaluated computed value
+    // Doesn’t get overriden even if it depends on other computed values
     target: null,
+    // Stores dependency keys of computed values
+    subs: {},
+    // Used to store the cache of a computed value
     cache: {},
-    invalidate (property) {
-      console.log('invalidating: ', property)
+    // Used to clear the cache of a computed value
+    clearCache (property) {
       this.cache[property] = null
     }
   }
@@ -31,8 +20,7 @@ function Seer (config) {
   return {
     data: config.data,
     observe,
-    notify,
-    Stream
+    notify
   }
 
   function subscribeWatchers(watchers) {
@@ -61,9 +49,18 @@ function Seer (config) {
 
     Object.defineProperty(obj, key, {
       get () {
-        if (Dep.target && deps.indexOf(Dep.target) === -1){
-          deps.push(Dep.target)
-          console.log(deps)
+        // Run only when getting within a computed value context
+        if (Dep.target) {
+          // Add the computed value as depending on this value
+          // if not yet added
+          if (!deps.includes(Dep.target)) {
+            deps.push(Dep.target)
+          }
+          // Add this value as a dependency of the computed value
+          // if not yet added
+          if (!Dep.subs[Dep.target].includes(key)) {
+            Dep.subs[Dep.target].push(key)
+          }
         }
 
         return val
@@ -71,11 +68,21 @@ function Seer (config) {
       set (newVal) {
         val = newVal
 
+        // If it has computed values that depend on this value
         if (deps.length) {
-          console.log(key, 'is deps for: ', deps)
-          deps.forEach(dep => Dep.invalidate(dep))
-          deps.forEach(dep => notify(dep))
+          // Filter only valid dependencies to remove dead dependencies
+          // that were not used during last computation
+          deps = deps.filter(dep => {
+            return Dep.subs[dep].includes(key)
+          })
+          deps.forEach(dep => {
+            // Invalidate cache for given computed value by removing it
+            Dep.clearCache(dep)
+            // Notify computed value observers
+            notify(dep)
+          })
         }
+        // Notify current key observers
         notify(key, val)
       }
     })
@@ -84,20 +91,27 @@ function Seer (config) {
   function makeComputed (obj, key, computeFunc) {
     Object.defineProperty(obj, key, {
       get () {
-        if (!Dep.target) Dep.target = key
-        // val = computeFunc.call(obj)
-        // console.log(Dep.target, 'vs', key)
-        if (Dep.cache[key] && Dep.target === key) {
-          console.log('has cache for ', key , ': ', Dep.cache[key])
-        } else {
+        // If no cache for this value exists and
+        // target context is different than evaluated context
+        if (!Dep.cache[key] || Dep.target !== key) {
+          // If there is no target at all yet
+          if (!Dep.target) {
+            // Set the currently evaluated context as the target context
+            Dep.target = key
+            // Clear dependencies list to ensure getting a fresh one
+            Dep.subs[key] = []
+          }
+          // Calculate the computed value and save to cache
           Dep.cache[key] = computeFunc.call(obj)
         }
+
+        // Clear the target context
         Dep.target = null
         return Dep.cache[key]
-        // val = Dep.cache[key] || computeFunc.call(obj)
-        // Dep.cache[key] = val
       },
-      set () {}
+      set () {
+        // Do nothing!
+      }
     })
   }
 
@@ -114,16 +128,21 @@ function Seer (config) {
     parseDOM(document.body, obj)
   }
 
-  function syncNode (node, observable, property) {
-    node.textContent = observable[property]
-    observe(property, () => node.textContent = observable[property])
+  function sync (attr, node, observable, property) {
+    node[attr] = observable[property]
+    observe(property, () => node[attr] = observable[property])
   }
 
   function parseDOM (node, observable) {
     const nodes = document.querySelectorAll('[s-text]')
+    const inputs = document.querySelectorAll('[s-model]')
 
-    nodes.forEach((node) => {
-      syncNode(node, observable, node.attributes['s-text'].value)
+    nodes.forEach(node => {
+      sync('textContent', node, observable, node.attributes['s-text'].value)
+    })
+
+    inputs.forEach(input => {
+      sync('value', input, observable, input.attributes['s-model'].value)
     })
   }
 }
@@ -135,43 +154,26 @@ const App = Seer({
     firstName2: 'Sansa',
     lastName2: 'Stark',
     gender: 'male',
-    age: 5,
     fullName () {
-      console.log('computing fullName')
       return this.gender === 'male'
         ? 'Mr ' + this.firstName + ' ' + this.lastName
         : 'Ms ' + this.firstName2 + ' ' + this.lastName2
     },
     fullNameLength () {
-      console.log('computing fullNameLength')
       const length = this.fullName.length - 4
       return length
         ? length
         : 'Full name not set'
     }
-    // onlyEvenLengthName: Stream.where(function () {
-    //   return this.firstName.length % 2 === 0
-    // })
   },
   watch: {
     firstName (v) {
-      // console.log('firstName changed to: ', v)
+      console.log('firstName changed to: ', v)
     },
     onlyEvenLengthName (v) {
-      // console.log(v)
+      console.log(v)
     }
   }
-  // stream: {
-  //   eachDecade: {
-  //     from: 'age',
-  //     operator (i) {
-  //
-  //     }
-  //     next (v) {
-  //       console.log('on next: ', v)
-  //     }
-  //   }
-  // }
 })
 
 function updateText (property, e) {
@@ -188,12 +190,4 @@ function updateName (event) {
 
 function logProperty (property) {
   console.log(App.data[property])
-}
-
-App.observe('age', () => {
-  App.data.ageError = parseInt(App.data.age) > 18 ? '' : 'Too young to watch'
-})
-
-function addToCart () {
-  App.data.items++
 }
