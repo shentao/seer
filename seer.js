@@ -23,14 +23,14 @@ function Seer (config) {
       // that were not used during last computation
       return deps.filter(dep => this.subs[dep].includes(key))
     },
-    notifyDeps (deps, key) {
+    notifyDeps (deps) {
       // notify all existing deps
       deps.forEach(notify)
     }
   }
 
   observeData(config.data)
-  subscribeWatchers(config.watch)
+  subscribeWatchers(config.watch, config.data)
 
   return {
     data: config.data,
@@ -38,10 +38,10 @@ function Seer (config) {
     notify
   }
 
-  function subscribeWatchers(watchers) {
+  function subscribeWatchers(watchers, context) {
     for (let key in watchers) {
       if (watchers.hasOwnProperty(key)) {
-        observe(key, watchers[key])
+        observe(key, watchers[key].bind(context))
       }
     }
   }
@@ -52,10 +52,10 @@ function Seer (config) {
     signals[property].push(signalHandler)
   }
 
-  function notify (signal, val) {
+  function notify (signal) {
     if(!signals[signal] || signals[signal].length < 1) return
 
-    signals[signal].forEach(signalHandler => signalHandler(val))
+    signals[signal].forEach(signalHandler => signalHandler())
   }
 
   function makeReactive (obj, key, computeFunc) {
@@ -101,9 +101,9 @@ function Seer (config) {
     Object.defineProperty(obj, key, {
       get () {
         // If within a computed value context other than self
-        if (Dep.target && Dep.target !== key) {
+        if (Dep.target) {
           // Make this computed value a dependency of another
-          Dep.depend(deps, key, Dep.target)
+          Dep.depend(deps, key)
         }
         // Normalize Dep.target to self
         Dep.target = key
@@ -177,7 +177,11 @@ const App = Seer({
       return this.side === 'Noop' ? 'noop' : this.selectedCharacter.length
     }
   },
-  watch: {}
+  watch: {
+    selectedCharacterSentenceLength () {
+      console.log(this.selectedCharacterSentenceLength)
+    }
+  }
 })
 
 function updateText (property, e) {
