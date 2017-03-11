@@ -84,19 +84,16 @@ function Seer (config) {
   }
 
   function makeComputed (obj, key, computeFunc) {
-    let dirty = true
     let cache = null
     observe(key, () => {
-      console.log('clear cache for: ', key)
       cache = null
     })
 
     Object.defineProperty(obj, key, {
       get () {
-        console.log('get computed ', key)
-        // If no cache for this value exists and
-        // target context is different than evaluated context
-        if (!cache || Dep.target !== key) {
+        // If no cache for this value exists OR
+        // target context exist AND is different than evaluated context
+        if (!cache || (Dep.target && Dep.target !== key)) {
           // If there is no target at all yet
           if (!Dep.target) {
             // Set the currently evaluated context as the target context
@@ -105,7 +102,6 @@ function Seer (config) {
             Dep.subs[key] = []
           }
           // Calculate the computed value and save to cache
-          console.log('calc new cache cuz cache = ', cache)
           cache = computeFunc.call(obj)
         }
 
@@ -158,7 +154,6 @@ const App = Seer({
     placeholder: 'Choose your side!',
     side: null,
     selectedCharacter () {
-      console.log('calc selectedCharacter');
       switch (this.side) {
         case 'Good':
           return `Your character is ${this.goodCharacter}!`
@@ -166,7 +161,10 @@ const App = Seer({
           return `Your character is ${this.evilCharacter}!`
         default:
   			  return this.placeholder
-		 }
+		  }
+    },
+    selectedCharacterLength () {
+      return this.selectedCharacter.length
     }
   },
   watch: {}
