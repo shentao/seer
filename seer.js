@@ -6,6 +6,27 @@ function Seer (config) {
     target: null,
     // Stores dependency keys of computed values
     subs: {},
+    depend (deps, dep) {
+      // Add the computed value as depending on this value
+      // if not yet added
+      if (!deps.includes(this.target)) {
+        deps.push(this.target)
+      }
+      // Add this value as a dependency of the computed value
+      // if not yet added
+      if (!Dep.subs[this.target].includes(dep)) {
+        Dep.subs[this.target].push(dep)
+      }
+    },
+    getValidDeps (deps, key) {
+      // Filter only valid dependencies by removing dead dependencies
+      // that were not used during last computation
+      return deps.filter(dep => this.subs[dep].includes(key))
+    },
+    notifyDeps (deps, key) {
+      // notify all existing deps
+      deps.forEach(notify)
+    }
   }
 
   observeData(config.data)
@@ -32,7 +53,6 @@ function Seer (config) {
   }
 
   function notify (signal, val) {
-    console.log('notify :', signal)
     if(!signals[signal] || signals[signal].length < 1) return
 
     signals[signal].forEach(signalHandler => signalHandler(val))
@@ -46,16 +66,7 @@ function Seer (config) {
       get () {
         // Run only when getting within a computed value context
         if (Dep.target) {
-          // Add the computed value as depending on this value
-          // if not yet added
-          if (!deps.includes(Dep.target)) {
-            deps.push(Dep.target)
-          }
-          // Add this value as a dependency of the computed value
-          // if not yet added
-          if (!Dep.subs[Dep.target].includes(key)) {
-            Dep.subs[Dep.target].push(key)
-          }
+          Dep.depend(deps, key)
         }
 
         return val
@@ -63,45 +74,44 @@ function Seer (config) {
       set (newVal) {
         val = newVal
 
-        // If it has computed values that depend on this value
-        if (deps.length) {
-          // Filter only valid dependencies to remove dead dependencies
-          // that were not used during last computation
-          deps = deps.filter(dep => {
-            return Dep.subs[dep].includes(key)
-          })
-          deps.forEach(dep => {
-            // Invalidate cache for given computed value by removing it
-            // Dep.invalidateCache(dep)
-            // Notify computed value observers
-            notify(dep)
-          })
-        }
+        // Clean up and notify valid deps
+        deps = Dep.getValidDeps(deps, key)
+        Dep.notifyDeps(deps, key)
+
         // Notify current key observers
-        notify(key, val)
+        notify(key)
       }
     })
   }
 
   function makeComputed (obj, key, computeFunc) {
     let cache = null
+    let deps = []
+
+    // Observe self to clear cache when deps change
     observe(key, () => {
+      // Clear cache
       cache = null
+
+      // Clean up and notify valid deps
+      deps = Dep.getValidDeps(deps, key)
+      Dep.notifyDeps(deps, key)
     })
 
     Object.defineProperty(obj, key, {
       get () {
-        // If no cache for this value exists OR
-        // target context exist AND is different than evaluated context
-        if (!cache || (Dep.target && Dep.target !== key)) {
-          // If there is no target at all yet
-          if (!Dep.target) {
-            // Set the currently evaluated context as the target context
-            Dep.target = key
-            // Clear dependencies list to ensure getting a fresh one
-            Dep.subs[key] = []
-          }
-          // Calculate the computed value and save to cache
+        // If within a computed value context other than self
+        if (Dep.target && Dep.target !== key) {
+          // Make this computed value a dependency of another
+          Dep.depend(deps, key, Dep.target)
+        }
+        // Normalize Dep.target to self
+        Dep.target = key
+
+        if (!cache) {
+          // Clear dependencies list to ensure getting a fresh one
+          Dep.subs[key] = []
+          // Calculate new value and save to cache
           cache = computeFunc.call(obj)
         }
 
@@ -163,8 +173,8 @@ const App = Seer({
   			  return this.placeholder
 		  }
     },
-    selectedCharacterLength () {
-      return this.selectedCharacter.length
+    selectedCharacterSentenceLength () {
+      return this.side === 'Noop' ? 'noop' : this.selectedCharacter.length
     }
   },
   watch: {}
