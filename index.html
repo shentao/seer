@@ -6,41 +6,31 @@
   </head>
   <body>
 
-    <!-- <h1 s-text="title"></h1> -->
-    <!-- <label for="title">Title: </label>
-    <input
-      type="text"
-      id="title" placeholder="Enter title"
-      oninput="updateText('title', event)">
-    <button type="button" onclick="resetTitle()">Reset title</button> -->
-
-    Select gender:
-    <select onchange="updateText('gender', event)">
-      <option value="male">Male</option>
-      <option value="female">Female</option>
+    Select your side:
+    <select onchange="updateText('side', event)">
+      <option value="---">---</option>
+      <option value="Good">Good</option>
+      <option value="Evil">Evil</option>
     </select>
 
     <fieldset>
-      Mr:
-      <!-- <h1 s-text="firstName"></h1> -->
-      <input type="text" s-model="firstName" oninput="updateText('firstName', event)"/>
-
-      <!-- <h1 s-text="lastName"></h1> -->
-      <input type="text" s-model="lastName" oninput="updateText('lastName', event)"/>
+      The good one:
+      <p s-text="goodCharacter"></p>
+      <input type="text" s-model="goodCharacter" oninput="updateText('goodCharacter', event)"/>
     </fieldset>
     <fieldset>
-      Ms:
-      <!-- <h1 s-text="firstName2"></h1> -->
-      <input type="text" s-model="firstName2" oninput="updateText('firstName2', event)"/>
-
-      <!-- <h1 s-text="lastName2"></h1> -->
-      <input type="text" s-model="lastName2" oninput="updateText('lastName2', event)"/>
+      The evil one:
+      <p s-text="evilCharacter"></p>
+      <input type="text" s-model="evilCharacter" oninput="updateText('evilCharacter', event)"/>
     </fieldset>
-    <h1 s-text="fullName"></h1>
-    <p>Full name is <span s-text="fullNameLength"></span> letter long</p>
 
-    <button type="button" onclick="logProperty('fullName')">Log FullName</button>
-    <button type="button" onclick="logProperty('fullNameLength')">Log FullNameLength</button>
+    <h3>Your character:</h3>
+    <p s-text="selectedCharacter"></p>
+    <p s-text="selectedCharacter"></p>
+    <p s-text="selectedCharacter"></p>
+
+    <!-- <button type="button" onclick="logProperty('fullName')">Log FullName</button>
+    <button type="button" onclick="logProperty('fullNameLength')">Log FullNameLength</button> -->
 
     <!-- <h1>Age: <span s-text="age"></span></h1> -->
     <!-- <input type="text" oninput="updateText('age', event)"/> -->

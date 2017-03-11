@@ -6,12 +6,6 @@ function Seer (config) {
     target: null,
     // Stores dependency keys of computed values
     subs: {},
-    // Used to store the cache of a computed value
-    cache: {},
-    // Used to clear the cache of a computed value
-    clearCache (property) {
-      this.cache[property] = null
-    }
   }
 
   observeData(config.data)
@@ -38,6 +32,7 @@ function Seer (config) {
   }
 
   function notify (signal, val) {
+    console.log('notify :', signal)
     if(!signals[signal] || signals[signal].length < 1) return
 
     signals[signal].forEach(signalHandler => signalHandler(val))
@@ -77,7 +72,7 @@ function Seer (config) {
           })
           deps.forEach(dep => {
             // Invalidate cache for given computed value by removing it
-            Dep.clearCache(dep)
+            // Dep.invalidateCache(dep)
             // Notify computed value observers
             notify(dep)
           })
@@ -89,11 +84,19 @@ function Seer (config) {
   }
 
   function makeComputed (obj, key, computeFunc) {
+    let dirty = true
+    let cache = null
+    observe(key, () => {
+      console.log('clear cache for: ', key)
+      cache = null
+    })
+
     Object.defineProperty(obj, key, {
       get () {
+        console.log('get computed ', key)
         // If no cache for this value exists and
         // target context is different than evaluated context
-        if (!Dep.cache[key] || Dep.target !== key) {
+        if (!cache || Dep.target !== key) {
           // If there is no target at all yet
           if (!Dep.target) {
             // Set the currently evaluated context as the target context
@@ -102,12 +105,13 @@ function Seer (config) {
             Dep.subs[key] = []
           }
           // Calculate the computed value and save to cache
-          Dep.cache[key] = computeFunc.call(obj)
+          console.log('calc new cache cuz cache = ', cache)
+          cache = computeFunc.call(obj)
         }
 
         // Clear the target context
         Dep.target = null
-        return Dep.cache[key]
+        return cache
       },
       set () {
         // Do nothing!
@@ -149,43 +153,27 @@ function Seer (config) {
 
 const App = Seer({
   data: {
-    firstName: 'Jon',
-    lastName: 'Snow',
-    firstName2: 'Sansa',
-    lastName2: 'Stark',
-    gender: 'male',
-    fullName () {
-      return this.gender === 'male'
-        ? 'Mr ' + this.firstName + ' ' + this.lastName
-        : 'Ms ' + this.firstName2 + ' ' + this.lastName2
-    },
-    fullNameLength () {
-      const length = this.fullName.length - 4
-      return length
-        ? length
-        : 'Full name not set'
+    goodCharacter: 'Cloud Strife',
+    evilCharacter: 'Sephiroth',
+    placeholder: 'Choose your side!',
+    side: null,
+    selectedCharacter () {
+      console.log('calc selectedCharacter');
+      switch (this.side) {
+        case 'Good':
+          return `Your character is ${this.goodCharacter}!`
+        case 'Evil':
+          return `Your character is ${this.evilCharacter}!`
+        default:
+  			  return this.placeholder
+		 }
     }
   },
-  watch: {
-    firstName (v) {
-      console.log('firstName changed to: ', v)
-    },
-    onlyEvenLengthName (v) {
-      console.log(v)
-    }
-  }
+  watch: {}
 })
 
 function updateText (property, e) {
 	App.data[property] = e.target.value
-}
-
-function resetTitle () {
-	App.data.title = "Game of Thrones"
-}
-
-function updateName (event) {
-  App.data.firstName = event.target.value.split("").reverse().join("")
 }
 
 function logProperty (property) {
