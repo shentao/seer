@@ -1,4 +1,43 @@
 function Seer (config) {
+  class ObservableArray extends Array {
+    constructor (args, path) {
+      super(...args)
+      this.__proto__.path = path
+    }
+    push (...args) {
+      super.push(...args)
+      notify(this.__proto__.path)
+    }
+    fill (...args) {
+      super.fill(...args)
+      notify(this.__proto__.path)
+    }
+    sort (...args) {
+      super.sort(...args)
+      notify(this.__proto__.path)
+    }
+    unshift (...args) {
+      super.unshift(...args)
+      notify(this.__proto__.path)
+    }
+    reverse () {
+      super.reverse()
+      notify(this.__proto__.path)
+    }
+    shift () {
+      super.shift()
+      notify(this.__proto__.path)
+    }
+    pop () {
+      super.pop()
+      notify(this.__proto__.path)
+    }
+    splice (...args) {
+      super.splice(...args)
+      notify(this.__proto__.path)
+    }
+  }
+
   let signals = {}
   let Dep = {
     // Name of the currently evaluated computed value
@@ -58,9 +97,12 @@ function Seer (config) {
     signals[signal].forEach(signalHandler => signalHandler())
   }
 
-  function makeReactive (obj, key, computeFunc) {
+  function makeReactive (obj, key, prefix, isArray) {
     let deps = []
-    let val = obj[key]
+    const path = prefix.concat([key]).join('.')
+    let val = isArray
+      ? new ObservableArray(obj[key], path)
+      : obj[key]
 
     Object.defineProperty(obj, key, {
       get () {
@@ -72,14 +114,16 @@ function Seer (config) {
         return val
       },
       set (newVal) {
-        val = newVal
+        val = isArray
+          ? new ObservableArray(newVal, path)
+          : newVal
 
         // Clean up and notify valid deps
         deps = Dep.getValidDeps(deps, key)
         Dep.notifyDeps(deps, key)
 
         // Notify current key observers
-        notify(key)
+        notify(path)
       }
     })
   }
@@ -126,21 +170,58 @@ function Seer (config) {
   }
 
   function observeData (obj) {
+    walk(obj)
+    parseDOM(document.body, obj)
+  }
+
+  function walk(obj, prefix = []) {
     for (let key in obj) {
       if (obj.hasOwnProperty(key)) {
         if (typeof obj[key] === 'function') {
           makeComputed(obj, key, obj[key])
         } else {
-          makeReactive(obj, key)
+          if (Array.isArray(obj[key])) {
+            makeReactive(obj, key, prefix, true)
+          } else if (typeof obj[key] === 'object' && obj[key] !== null) {
+            walk(obj[key], prefix.concat(key))
+          } else {
+            makeReactive(obj, key, prefix)
+          }
         }
       }
     }
-    parseDOM(document.body, obj)
   }
 
   function sync (attr, node, observable, property) {
-    node[attr] = observable[property]
-    observe(property, () => node[attr] = observable[property])
+    node[attr] = get(observable, property)
+    observe(property, () => node[attr] = get(observable, property))
+  }
+
+  function getPathKeys (path) {
+    return path
+      .replace(/\[(\w+)\]/g, '.$1')
+      .replace(/^\./, '')
+      .split('.')
+  }
+
+  function get (obj, path) {
+    return getPathKeys(path)
+      .reduce((prev, curr) => {
+        return prev ? prev[curr] : undefined
+      }, obj)
+  }
+
+  function set (obj, path, value) {
+    const keys = getPathKeys(path)
+
+    function setValue (_obj, _keys) {
+      if (_keys.length > 1) {
+        setValue(_obj[_keys[0]], _keys.slice(1))
+      } else {
+        _obj[_keys[0]] = value
+      }
+    }
+    setValue(obj, keys)
   }
 
   function parseDOM (node, observable) {
@@ -152,21 +233,34 @@ function Seer (config) {
     })
 
     inputs.forEach(input => {
-      sync('value', input, observable, input.attributes['s-model'].value)
+      const property = input.attributes['s-model'].value
+      sync('value', input, observable, property)
+      input.addEventListener('input', e => {
+        set(observable, property, e.target.value)
+      })
     })
   }
 }
 
 const App = Seer({
   data: {
-    goodCharacter: 'Cloud Strife',
+    character: {
+      name: 'Cloud Strife',
+      age: 0,
+      class: 'SOLDAT',
+      gender: null,
+      skills: [1, 2, 3],
+    },
     evilCharacter: 'Sephiroth',
     placeholder: 'Choose your side!',
     side: null,
+    characterSummary () {
+      return `${this.character.name} is ${this.character.age} years old. Class: ${this.character.class}.`
+    },
     selectedCharacter () {
       switch (this.side) {
         case 'Good':
-          return `Your character is ${this.goodCharacter}!`
+          return `Your character is ${this.characterSummary}!`
         case 'Evil':
           return `Your character is ${this.evilCharacter}!`
         default:
@@ -188,6 +282,9 @@ function updateText (property, e) {
 	App.data[property] = e.target.value
 }
 
-function logProperty (property) {
-  console.log(App.data[property])
+function addSkill (e) {
+  if (e.key === 'Enter') {
+    App.data.character.skills.push(e.target.value)
+    e.target.value = ''
+  }
 }
