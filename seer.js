@@ -51,8 +51,8 @@ function Seer (dataObj) {
     observe(property, () => node.textContent = observable[property])
   }
 
-  function parseDOM (node, observable) {
-    const nodes = document.querySelectorAll('[s-text]')
+  function parseDOM (parentNode, observable) {
+    const nodes = parentNode.querySelectorAll('[s-text]')
 
     nodes.forEach((node) => {
       syncNode(node, observable, node.attributes['s-text'].value)
