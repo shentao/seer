@@ -1,4 +1,7 @@
-function Seer (config) {
+/** @jsx h */
+import { updateElement, h } from './vdom'
+
+export default function Seer (config) {
   class ObservableArray extends Array {
     constructor (args, path) {
       super(...args)
@@ -44,16 +47,18 @@ function Seer (config) {
     // Doesn’t get overriden even if it depends on other computed values
     target: null,
     // Stores dependency keys of computed values
-    subs: {},
+    subs: {
+      '_render': []
+    },
     depend (deps, dep) {
       // Add the computed value as depending on this value
       // if not yet added
-      if (!deps.includes(this.target)) {
+      if (deps && !deps.includes(this.target)) {
         deps.push(this.target)
       }
       // Add this value as a dependency of the computed value
       // if not yet added
-      if (!Dep.subs[this.target].includes(dep)) {
+      if (Dep.subs[this.target] && !Dep.subs[this.target].includes(dep)) {
         Dep.subs[this.target].push(dep)
       }
     },
@@ -67,14 +72,36 @@ function Seer (config) {
       deps.forEach(notify)
     }
   }
-
-  observeData(config.data)
-  subscribeWatchers(config.watch, config.data)
+  let $root
+  let $lastVirtualNode
 
   return {
     data: config.data,
     observe,
-    notify
+    notify,
+    $mount: mount
+  }
+
+  function render (parent = $root) {
+    Dep.target = '_render'
+    $lastVirtualNode = updateElement(parent, config.render.call(config.data, h), $lastVirtualNode)
+    Dep.target = null
+  }
+
+  function mount (query) {
+    $root = document.querySelector(query)
+    observeData(config.data)
+    subscribeWatchers(config.watch, config.data)
+
+    render()
+
+    observe('_render', () => { render() })
+    return {
+      data: config.data,
+      observe,
+      notify,
+      $forceUpdate: render
+    }
   }
 
   function subscribeWatchers(watchers, context) {
@@ -171,7 +198,6 @@ function Seer (config) {
 
   function observeData (obj) {
     walk(obj)
-    parseDOM(document.body, obj)
   }
 
   function walk(obj, prefix = []) {
@@ -190,101 +216,5 @@ function Seer (config) {
         }
       }
     }
-  }
-
-  function sync (attr, node, observable, property) {
-    node[attr] = get(observable, property)
-    observe(property, () => node[attr] = get(observable, property))
-  }
-
-  function getPathKeys (path) {
-    return path
-      .replace(/\[(\w+)\]/g, '.$1')
-      .replace(/^\./, '')
-      .split('.')
-  }
-
-  function get (obj, path) {
-    return getPathKeys(path)
-      .reduce((prev, curr) => {
-        return prev ? prev[curr] : undefined
-      }, obj)
-  }
-
-  function set (obj, path, value) {
-    const keys = getPathKeys(path)
-
-    function setValue (_obj, _keys) {
-      if (_keys.length > 1) {
-        setValue(_obj[_keys[0]], _keys.slice(1))
-      } else {
-        _obj[_keys[0]] = value
-      }
-    }
-    setValue(obj, keys)
-  }
-
-  function parseDOM (node, observable) {
-    const nodes = document.querySelectorAll('[s-text]')
-    const inputs = document.querySelectorAll('[s-model]')
-
-    nodes.forEach(node => {
-      sync('textContent', node, observable, node.attributes['s-text'].value)
-    })
-
-    inputs.forEach(input => {
-      const property = input.attributes['s-model'].value
-      sync('value', input, observable, property)
-      input.addEventListener('input', e => {
-        set(observable, property, e.target.value)
-      })
-    })
-  }
-}
-
-const App = Seer({
-  data: {
-    character: {
-      name: 'Cloud Strife',
-      age: 0,
-      class: 'SOLDAT',
-      gender: null,
-      skills: [1, 2, 3],
-    },
-    evilCharacter: 'Sephiroth',
-    placeholder: 'Choose your side!',
-    side: null,
-    characterSummary () {
-      return `${this.character.name} is ${this.character.age} years old. Class: ${this.character.class}.`
-    },
-    selectedCharacter () {
-      switch (this.side) {
-        case 'Good':
-          return `Your character is ${this.characterSummary}!`
-        case 'Evil':
-          return `Your character is ${this.evilCharacter}!`
-        default:
-  			  return this.placeholder
-		  }
-    },
-    selectedCharacterSentenceLength () {
-      return this.side === 'Noop' ? 'noop' : this.selectedCharacter.length
-    }
-  },
-  watch: {
-    selectedCharacterSentenceLength () {
-      console.log(this.selectedCharacterSentenceLength)
-    }
-  }
-})
-
-function updateText (property, e) {
-	App.data[property] = e.target.value
-}
-
-function addSkill (e) {
-  if (e.key === 'Enter') {
-    App.data.character.skills.push(e.target.value)
-    e.target.value = ''
   }
 }
